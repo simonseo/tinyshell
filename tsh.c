@@ -2,7 +2,7 @@
  *      tsh - A tiny shell program with job control 
  * 
  *      Simon Seo        - ms9144
- *      Khaled AlHosani  - kah579
+ *      Khaled AlHosani  - kah579 yay
  *
  */
 #include <stdio.h>
