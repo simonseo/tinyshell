@@ -1,8 +1,8 @@
 # Makefile for the CS:APP Shell Lab
 
-TEAM = NOBODY
+TEAM = ms9144+kah579
 VERSION = 1
-HANDINDIR = /afs/cs/academic/class/15213-f02/L5/handin
+HANDINDIR = ./
 DRIVER = ./sdriver.pl
 TSH = ./tsh
 TSHREF = ./tshref

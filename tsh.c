@@ -153,20 +153,45 @@ int main(int argc, char **argv)
 
     exit(0); /* control never reaches here */
 }
-  
+
 /* 
  * eval - Evaluate the command line that the user has just typed in
  * 
  * If the user has requested a built-in command (quit, jobs, bg or fg)
  * then execute it immediately. Otherwise, fork a child process and
  * run the job in the context of the child. If the job is running in
- * the foreground, wait for it to terminate and then return.  Note:
+ * the foreground, wait for it to terminate and then return. Note:
  * each child process must have a unique process group ID so that our
  * background children don't receive SIGINT (SIGTSTP) from the kernel
- * when we type ctrl-c (ctrl-z) at the keyboard.  
+ * when we type ctrl-c (ctrl-z) at the keyboard.
 */
+
 void eval(char *cmdline) 
 {
+    char *argv[MAXARGS]; /* argv for execve() */
+    int bg; /* should the job run in bg or fg? */
+    pid_t pid; /* process id */
+
+    bg = parseline(cmdline, argv);
+    if (!builtin_cmd(argv)) { 
+        if ((pid = fork()) == 0) { /* child runs user job */
+            if (execve(argv[0], argv, environ) < 0) {
+                printf("%s: Command not found.\n", argv[0]);
+                exit(0);
+            }
+        }
+        if (!bg) {
+            int status;
+            if (waitpid(pid, &status, 0) < 0)
+                unix_error("waitfg: waitpid error");
+        }
+        else {
+            printf("%d %s", pid, cmdline);
+        }
+    }
+    else {
+        /* else doesn't exist because if cmdline is a builtin command it will run inside builtin_command() */
+    }
     return;
 }
 
@@ -233,6 +258,23 @@ int parseline(const char *cmdline, char **argv)
  */
 int builtin_cmd(char **argv) 
 {
+    /*
+    [Simon] strcmp returns 0 if string matches.
+    compare the first argument and given string.
+    rest are self explanatory
+    */
+
+    if (!strcmp(argv[0], "bg") || !strcmp(argv[0], "fg")) {
+        do_bgfg(argv);
+        return 1;
+    }
+    else if (!strcmp(argv[0], "jobs")) {
+        listjobs(jobs);
+        return 1;
+    }
+    else if (!strcmp(argv[0], "quit")) {
+        exit(0);
+    }
     return 0;     /* not a builtin command */
 }
 
@@ -241,6 +283,7 @@ int builtin_cmd(char **argv)
  */
 void do_bgfg(char **argv) 
 {
+    
     return;
 }
 
