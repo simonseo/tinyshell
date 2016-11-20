@@ -359,7 +359,30 @@ void waitfg(pid_t pid)
  */
 void sigchld_handler(int sig) 
 {
-    return;
+    int signal;
+    pid_t pid;
+
+    while((pid=waitpid(-1,&status,WNOHANG|WUNTRACED)) > 0)
+    {
+        struct job_t *signaled_child = getjobpid(jobs,pid);
+
+        if(WIFEXITED(status))
+        {
+            deletejob(jobs,pid);
+        }
+
+        if(WIFSIGNALED(status))
+        {
+            printf("Job [%d] (%d) terminated by signal 2\n",signaled_child->jid, pid);
+            deletejob(jobs,pid);
+        }
+
+        if(WIFSTOPPED(status))
+        {
+            signaled_child->status=ST;
+            printf("Job [%d] (%d) stopped by signal 20\n",signaled_child->jid, pid);
+        }
+    }
 }
 
 /* 
