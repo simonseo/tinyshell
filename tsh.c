@@ -348,6 +348,10 @@ void do_bgfg(char **argv)
  */
 void waitfg(pid_t pid)
 {
+    while (pid==fgpid(jobs))
+    {
+        sleep(1);
+    }
     return;
 }
 
