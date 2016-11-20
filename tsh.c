@@ -1,9 +1,7 @@
 /* 
- *      tsh - A tiny shell program with job control 
- * 
- *      Simon Seo        - ms9144
- *      Khaled AlHosani  - kah579
- *
+ * tsh - A tiny shell program with job control 
+ *      
+ * ms9144+kah579
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -339,7 +337,7 @@ void do_bgfg(char **argv)
  */
 void waitfg(pid_t pid)
 {
-    while (pid==fgpid(jobs))
+    while (pid==fgpid(jobs))    //As long as the is in the foreground, sleep, then check again
     {
         sleep(1);
     }
@@ -362,22 +360,22 @@ void sigchld_handler(int sig)
     int signal;
     pid_t pid;
 
-    while((pid=waitpid(-1,&status,WNOHANG|WUNTRACED)) > 0)
+    while((pid=waitpid(-1,&status,WNOHANG|WUNTRACED)) > 0)  //If a child recieves is stopped or terminated, proceed
     {
         struct job_t *signaled_child = getjobpid(jobs,pid);
 
-        if(WIFEXITED(status))
+        if(WIFEXITED(status))   //child terminated normally, delete its job
         {
             deletejob(jobs,pid);
         }
 
-        if(WIFSIGNALED(status))
+        if(WIFSIGNALED(status)) //child was signalled to terminate, delete its job and print message
         {
             printf("Job [%d] (%d) terminated by signal 2\n",signaled_child->jid, pid);
             deletejob(jobs,pid);
         }
 
-        if(WIFSTOPPED(status))
+        if(WIFSTOPPED(status))  //child was stopped, change status and print message
         {
             signaled_child->status=ST;
             printf("Job [%d] (%d) stopped by signal 20\n",signaled_child->jid, pid);
@@ -394,8 +392,7 @@ void sigint_handler(int sig)
 {
     pid_t pid = fgpid(jobs);
     
-    if(pid>0)
-    
+    if(pid>0)   //If there is a foreground job, send SIGINT to it
     {
         kill(-pid,SIGINT);   
 
@@ -412,16 +409,12 @@ void sigtstp_handler(int sig)
 {
     pid_t pid = fgpid(jobs);
     
-    if(pid==0)
-    {
-        return; 
-    }
-    
-    else
+    if(pid>0)  //If there is a foreground job, send SIGSTP to it
     {
         kill(-pid,SIGTSTP); 
-        
     }
+    
+    return;
 }
 
 /*********************
