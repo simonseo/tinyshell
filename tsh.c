@@ -171,24 +171,42 @@ void eval(char *cmdline)
     char *argv[MAXARGS]; /* argv for execve() */
     int bg; /* should the job run in bg or fg? */
     pid_t pid; /* process id */
+    int jid;
+    sigset_t *set;
 
     bg = parseline(cmdline, argv);
     if (!builtin_cmd(argv)) { 
+        if (sigprocmask(SIG_BLOCK, set, NULL) < -1) {
+            printf("error\n");
+        }
         if ((pid = fork()) == 0) { /* child runs user job */
+
             if (execve(argv[0], argv, environ) < 0) {
                 printf("%s: Command not found.\n", argv[0]);
                 exit(0);
             }
         }
-        if (!bg) {
-            int status;
-            if (waitpid(pid, &status, 0) < 0)
-                unix_error("waitfg: waitpid error");
+        else if (!bg) {
+            addjob(jobs, pid, FG, cmdline);
         }
         else {
-            printf("%d %s", pid, cmdline);
+            addjob(jobs, pid, BG, cmdline);
+        }
+
+
+
+        if (!bg){
+            waitfg(pid);
+        } 
+        else {
+            jid = pid2jid(pid);
+            printf("[%d] (%d) %s", jid, pid, cmdline);
         }
     }
+
+
+
+
     else {
         /* else doesn't exist because if cmdline is a builtin command it will run inside builtin_command() */
     }
@@ -283,7 +301,45 @@ int builtin_cmd(char **argv)
  */
 void do_bgfg(char **argv) 
 {
-    
+    /*
+    bg(fg) restarts job by sending it a sigcont signal(18),
+    and then runs it in the bg(fg). %JID or PID
+
+    Step 1. Retrieve job
+    Step 2. Continue
+    */
+    int bg = 0;
+    int using_jid = 0;
+    char *id = argv[1];
+    int pid;
+    int jid;
+    struct job_t *job;
+
+    if (!strcmp(argv[0], "bg")) {
+        bg = 1;
+    }
+    if (id[0] == '%') {
+        using_jid = 1;
+    }
+
+    if (using_jid) {
+        strcpy(id, argv[1]+1);
+        jid = atoi(id);
+        kill((job = getjobjid(jobs, jid))->pid, SIGCONT);
+    }
+    else {
+        strcpy(id, argv[1]);
+        pid = atoi(id);
+        kill((job = getjobpid(jobs, pid))->pid, SIGCONT);
+    }
+
+
+    if (bg) {
+        /* do nothing? */
+    }
+    else {
+        waitfg(pid);
+    }
     return;
 }
 
