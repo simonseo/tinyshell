@@ -177,39 +177,34 @@ void eval(char *cmdline)
     bg = parseline(cmdline, argv);
     if (!builtin_cmd(argv)) { 
         if (sigprocmask(SIG_BLOCK, set, NULL) < -1) {
-            printf("error\n");
+            unix_error("Error from sigprocmask block");
         }
         if ((pid = fork()) == 0) { /* child runs user job */
-
+            if (sigprocmask(SIG_UNBLOCK, set, NULL) != 0){
+                unix_error("Error from sigprocmask ublock");
+            }
             if (execve(argv[0], argv, environ) < 0) {
                 printf("%s: Command not found.\n", argv[0]);
                 exit(0);
             }
         }
-        else if (!bg) {
-            addjob(jobs, pid, FG, cmdline);
-        }
-        else {
-            addjob(jobs, pid, BG, cmdline);
-        }
-
-
-
-        if (!bg){
-            waitfg(pid);
-        } 
-        else {
-            jid = pid2jid(pid);
-            printf("[%d] (%d) %s", jid, pid, cmdline);
-        }
     }
 
+    if (sigprocmask(SIG_UNBLOCK, set, NULL) != 0){
+        unix_error("Error from sigprocmask ublock");
+    }
 
-
-
+    if (!bg) {
+        addjob(jobs, pid, FG, cmdline);
+        waitfg(pid);
+    }
     else {
-        /* else doesn't exist because if cmdline is a builtin command it will run inside builtin_command() */
+        addjob(jobs, pid, BG, cmdline);
+        jid = pid2jid(pid);
+        printf("[%d] (%d) %s", jid, pid, cmdline);
     }
+
+
     return;
 }
 
@@ -304,40 +299,36 @@ void do_bgfg(char **argv)
     /*
     bg(fg) restarts job by sending it a sigcont signal(18),
     and then runs it in the bg(fg). %JID or PID
-
-    Step 1. Retrieve job
-    Step 2. Continue
     */
     int bg = 0;
-    int using_jid = 0;
     char *id = argv[1];
     int pid;
     int jid;
     struct job_t *job;
-
-    if (!strcmp(argv[0], "bg")) {
+    if (!strcmp(argv[0], "bg")) { //whether it's a bg job
         bg = 1;
     }
-    if (id[0] == '%') {
-        using_jid = 1;
-    }
 
-    if (using_jid) {
+
+    if (id[0] == '%') { //using jid
         strcpy(id, argv[1]+1);
+        printf("id is: %s", id);
         jid = atoi(id);
-        kill((job = getjobjid(jobs, jid))->pid, SIGCONT);
+        kill(  -( (job = getjobjid(jobs, jid))->pid ), SIGCONT);
     }
-    else {
+    else { //using pid
         strcpy(id, argv[1]);
         pid = atoi(id);
-        kill((job = getjobpid(jobs, pid))->pid, SIGCONT);
+        kill(  -( (job = getjobpid(jobs, pid))->pid ), SIGCONT);
     }
 
 
+    //set job state. wait for FG to finish.
     if (bg) {
-        /* do nothing? */
+        job->state = BG;
     }
     else {
+        job->state = FG;
         waitfg(pid);
     }
     return;
@@ -560,7 +551,7 @@ void listjobs(struct job_t *jobs)
 		    printf("listjobs: Internal error: job[%d].state=%d ", 
 			   i, jobs[i].state);
 	    }
-	    printf("%s", jobs[i].cmdline);
+        printf("%s", jobs[i].cmdline);
 	}
     }
 }
