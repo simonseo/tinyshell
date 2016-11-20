@@ -171,38 +171,35 @@ void eval(char *cmdline)
     pid_t pid; /* process id */
     int jid;
     sigset_t set;
-    printf("What is wrong\n");
     bg = parseline(cmdline, argv);
-    printf("What is wrong2\n");
     if (!builtin_cmd(argv)) { 
-        printf("What is wrong3\n");
+
+        //create sigset with SIGCHLD, SIGINT, SIGSTP and mask from signals
         sigemptyset(&set);
         sigaddset(&set, SIGCHLD);
         sigaddset(&set, SIGINT);
         sigaddset(&set, SIGTSTP);
-        printf("What is wrong4\n");
         if (sigprocmask(SIG_BLOCK, &set, NULL) != 0){
                 unix_error("Error from sigprocmask block");
             }
-        if ( (pid = fork()) == 0) { /* child runs user job */
-            printf("What is wrong5\n");
+
+        //child runs user job
+        if ( (pid = fork()) == 0) {
             if (sigprocmask(SIG_UNBLOCK, &set, NULL) != 0){
                 unix_error("Error from sigprocmask ublock");
             }
-            printf("What is wrong7\n");
-            if (setpgid(0, 0) < 0) {
+            if (setpgid(0, 0) < 0) {                                 //create new process group
                 unix_error("Error from setpgid");
             }
-            printf("What is wrong8\n");
             if (execve(argv[0], argv, environ) < 0) {
                 printf("%s: Command not found.\n", argv[0]);
                 exit(0);
             }
-            printf("What is wrong9\n");
         }
-        else { //Parent
-            printf("What is wrong6\n");
-            if (!bg) {
+
+        //parent adds to joblist, and wait for finish if fg
+        else {
+            if (!bg) {                                               //run in FG
                 if (addjob(jobs, pid, FG, cmdline) != 1) {
                     unix_error("Error from addjob");
                 }
@@ -211,7 +208,7 @@ void eval(char *cmdline)
                 }
                 waitfg(pid);
             }
-            else {
+            else {                                                   //run in BG
                 if (addjob(jobs, pid, BG, cmdline) != 1) {
                     unix_error("Error from addjob");
                 }
@@ -222,10 +219,8 @@ void eval(char *cmdline)
                 printf("[%d] (%d) %s", jid, pid, cmdline);
             }
         }
-            printf("What is wrong10\n");
     }
 
-            printf("What is wrong11\n");
 
     return;
 }
@@ -298,7 +293,6 @@ int builtin_cmd(char **argv)
     compare the first argument and given string.
     rest are self explanatory
     */
-
     if (!strcmp(argv[0], "bg") || !strcmp(argv[0], "fg")) {
         do_bgfg(argv);
         return 1;
@@ -324,36 +318,49 @@ void do_bgfg(char **argv)
     bg(fg) restarts job by sending it a sigcont signal(18),
     and then runs it in the bg(fg). %JID or PID
     */
-    int bg = 0;
     char *id = argv[1];
     int pid;
     int jid;
     struct job_t *job;
-    if (!strcmp(argv[0], "bg")) { //whether it's a bg job
-        bg = 1;
+
+    if (argv[1] == NULL) {                                           //did not provide a jid or pid
+        printf("fg command requires PID or %%jobid argument\n");
+        return;
     }
-
-
-    if (id[0] == '%') { //using jid
+    else if (id[0] == '%') {                                         //using jid
         strcpy(id, argv[1]+1);
-        printf("id is: %s", id);
         jid = atoi(id);
-        kill(  -( (job = getjobjid(jobs, jid))->pid ), SIGCONT);
+        if ((job = getjobjid(jobs, jid)) == NULL) {
+            printf("No such job\n");
+            return;
+        }
+        kill(  -( job->pid ), SIGCONT);
     }
-    else { //using pid
+    else if (isdigit(id[0])) {                                       //using pid
         strcpy(id, argv[1]);
         pid = atoi(id);
-        kill(  -( (job = getjobpid(jobs, pid))->pid ), SIGCONT);
+        if ((job = getjobpid(jobs, pid)) == NULL) {
+            printf("No such process\n");
+            return;
+        }
+        kill(  -( job ->pid ), SIGCONT);
+    }
+    else {                                                           //id wrong format
+        printf("argument must be a PID or %%jobid\n");
+        return;
     }
 
 
     //set job state. wait for FG to finish.
-    if (bg) {
+    if (!strcmp(argv[0], "bg")) {                                    // "bg"
+        job->state = BG;
+        pid = job->pid;
         jid = pid2jid(pid);
         printf("[%d] (%d) %s", jid, pid, job->cmdline);
     }
-    else {
+    else {                                                           // "fg"
         job->state = FG;
+        pid = job->pid;
         waitfg(pid);
     }
     return;
@@ -384,7 +391,7 @@ void waitfg(pid_t pid)
  */
 void sigchld_handler(int sig) 
 {
-    int signal;
+    int status;
     pid_t pid;
 
     while((pid=waitpid(-1,&status,WNOHANG|WUNTRACED)) > 0)  //If a child recieves is stopped or terminated, proceed
@@ -404,7 +411,7 @@ void sigchld_handler(int sig)
 
         if(WIFSTOPPED(status))  //child was stopped, change status and print message
         {
-            signaled_child->status=ST;
+            signaled_child->state=ST;
             printf("Job [%d] (%d) stopped by signal 20\n",signaled_child->jid, pid);
         }
     }
