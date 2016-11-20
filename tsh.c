@@ -374,6 +374,14 @@ void sigchld_handler(int sig)
  */
 void sigint_handler(int sig) 
 {
+    pid_t pid = fgpid(jobs);
+    
+    if(pid>0)
+    
+    {
+        kill(-pid,SIGINT);   
+
+    }
     return;
 }
 
@@ -384,7 +392,18 @@ void sigint_handler(int sig)
  */
 void sigtstp_handler(int sig) 
 {
-    return;
+    pid_t pid = fgpid(jobs);
+    
+    if(pid==0)
+    {
+        return; 
+    }
+    
+    else
+    {
+        kill(-pid,SIGTSTP); 
+        
+    }
 }
 
 /*********************
